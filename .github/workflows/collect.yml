@@ -1,13 +1,10 @@
 
-name: Collect Followers V3 PHP
+name: Collect Followers Cloudflare D1
 
 on:
   workflow_dispatch:
   schedule:
     - cron: '0 0 * * *'
-
-permissions:
-  contents: read
 
 jobs:
   collect:
@@ -23,52 +20,15 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Diagnose PHP API response
-        env:
-          SITE_URL: ${{ secrets.SITE_URL }}
-          COLLECTOR_TOKEN: ${{ secrets.COLLECTOR_TOKEN }}
-        run: |
-          python - <<'PY'
-          import os
-          import urllib.request
-          import urllib.error
-
-          url = os.environ["SITE_URL"].rstrip("/") + "/api/pages.php"
-          token = os.environ["COLLECTOR_TOKEN"]
-
-          req = urllib.request.Request(
-              url,
-              headers={
-                  "Authorization": "Bearer " + token,
-                  "Accept": "application/json"
-              }
-          )
-
-          try:
-              with urllib.request.urlopen(req, timeout=30) as response:
-                  body = response.read()
-                  print("HTTP:", response.status)
-                  print("Content-Type:", response.headers.get("Content-Type"))
-                  print("Response length:", len(body))
-                  print("Response starts with HTML:",
-                        body.lstrip().lower().startswith(
-                            (b"<!doctype html", b"<html")
-                        ))
-                  print("Response is JSON:",
-                        body.lstrip().startswith((b"{", b"[")))
-          except urllib.error.HTTPError as e:
-              print("HTTP error:", e.code)
-          except Exception as e:
-              print("Connection error:", type(e).__name__, str(e))
-          PY
-
       - name: Install Playwright
         run: |
+          python -m pip install --upgrade pip
           pip install playwright
           python -m playwright install --with-deps chromium
 
-      - name: Collect public followers and send to PHP API
+      - name: Collect followers to Cloudflare D1
         env:
           SITE_URL: ${{ secrets.SITE_URL }}
           COLLECTOR_TOKEN: ${{ secrets.COLLECTOR_TOKEN }}
-        run: python collector/collector.py
+        run: |
+          python collector/collector.py
