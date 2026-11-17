@@ -1,0 +1,74 @@
+
+name: Test Facebook Followers
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Playwright
+        run: |
+          pip install playwright
+          python -m playwright install --with-deps chromium
+
+      - name: Open Facebook and inspect followers
+        run: |
+          cat > check.py <<'PY'
+          import asyncio, re, json
+          from playwright.async_api import async_playwright
+
+          async def main():
+              async with async_playwright() as p:
+                  browser = await p.chromium.launch(headless=True)
+                  page = await browser.new_page(
+                      viewport={"width": 1366, "height": 900},
+                      locale="vi-VN"
+                  )
+                  url = "https://www.facebook.com/FPTShop37LTT"
+                  try:
+                      await page.goto(
+                          url, wait_until="domcontentloaded",
+                          timeout=45000
+                      )
+                      await page.wait_for_timeout(5000)
+                      await page.screenshot(
+                          path="facebook.png", full_page=True
+                      )
+                      text = await page.locator("body").inner_text()
+                      with open("facebook.txt", "w") as f:
+                          f.write(text)
+                      matches = re.findall(
+                          r'[\d.,]+\s*(?:K|M|nghìn|triệu)?'
+                          r'\s*(?:người theo dõi|followers)',
+                          text, re.IGNORECASE
+                      )
+                      print("URL:", page.url)
+                      print("FOLLOWERS FOUND:", matches)
+                      print("TEXT:", text[:2000])
+                  except Exception as e:
+                      print("ERROR:", str(e))
+                  finally:
+                      await browser.close()
+
+          asyncio.run(main())
+          PY
+          python check.py
+
+      - name: Save inspection files
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: facebook-result
+          path: |
+            facebook.png
+            facebook.txt
+          if-no-files-found: warn
