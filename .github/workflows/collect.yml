@@ -23,3 +23,32 @@ jobs:
           SITE_URL: ${{ secrets.SITE_URL }}
           COLLECTOR_TOKEN: ${{ secrets.COLLECTOR_TOKEN }}
         run: python collector/collector.py
+      - name: Diagnose PHP API response
+        env:
+          SITE_URL: ${{ secrets.SITE_URL }}
+          COLLECTOR_TOKEN: ${{ secrets.COLLECTOR_TOKEN }}
+        run: |
+          python - <<'PY'
+          import os, urllib.request, urllib.error
+
+          url = os.environ["SITE_URL"].rstrip("/") + "/api/pages.php"
+          token = os.environ["COLLECTOR_TOKEN"]
+
+          req = urllib.request.Request(
+              url,
+              headers={"Authorization": "Bearer " + token}
+          )
+
+          try:
+              with urllib.request.urlopen(req, timeout=30) as response:
+                  body = response.read()
+                  print("HTTP:", response.status)
+                  print("Final URL:", response.url)
+                  print("Content-Type:", response.headers.get("Content-Type"))
+                  print("Response length:", len(body))
+                  print("Response starts with HTML:", body.lstrip().lower().startswith(b"<!doctype html") or body.lstrip().lower().startswith(b"<html"))
+          except urllib.error.HTTPError as e:
+              print("HTTP error:", e.code)
+          except Exception as e:
+              print("Connection error:", type(e).__name__, str(e))
+          PY
